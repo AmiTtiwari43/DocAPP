@@ -53,22 +53,29 @@ const Signup = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center py-12 px-4">
+    <div className="min-h-screen bg-background flex items-center justify-center py-12 px-4 relative overflow-hidden">
+      <div className="absolute inset-0 bg-dot-pattern opacity-5"></div>
+      <div className="absolute inset-0 bg-gradient-primary-subtle"></div>
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
+        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className="w-full max-w-md relative z-10"
       >
-        <Card>
+        <Card className="border-2 premium-shadow-lg glass-effect">
           <CardHeader className="space-y-1 text-center">
-            <div className="flex justify-center mb-4">
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <UserPlus className="h-6 w-6 text-primary" />
+            <motion.div 
+              className="flex justify-center mb-4"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+            >
+              <div className="h-16 w-16 rounded-xl bg-gradient-primary flex items-center justify-center shadow-lg">
+                <UserPlus className="h-8 w-8 text-primary-foreground" />
               </div>
-            </div>
-            <CardTitle className="text-3xl">Create Account</CardTitle>
-            <CardDescription>
+            </motion.div>
+            <CardTitle className="text-3xl text-gradient">Create Account</CardTitle>
+            <CardDescription className="text-base">
               Join Mediverse and start your healthcare journey
             </CardDescription>
           </CardHeader>
@@ -134,9 +141,11 @@ const Signup = () => {
                 </Select>
               </div>
 
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Creating account...' : 'Sign Up'}
-              </Button>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button type="submit" className="w-full bg-gradient-primary hover:opacity-90 shadow-lg" disabled={loading}>
+                  {loading ? 'Creating account...' : 'Sign Up'}
+                </Button>
+              </motion.div>
             </form>
 
             <div className="mt-6 text-center text-sm">

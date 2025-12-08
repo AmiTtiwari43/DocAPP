@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { Heart, Mail, Phone, MapPin, Facebook, Twitter, Instagram, Linkedin } from 'lucide-react';
 import { Separator } from './ui/separator';
+import { motion } from 'framer-motion';
 
 const Footer = () => {
   const location = useLocation();
@@ -16,16 +17,27 @@ const Footer = () => {
   }
 
   return (
-    <footer className="bg-muted/30 border-t mt-auto">
-      <div className="max-w-7xl mx-auto px-4 py-12">
+    <footer className="bg-gradient-primary-subtle border-t mt-auto relative overflow-hidden">
+      <div className="absolute inset-0 bg-dot-pattern opacity-5"></div>
+      <div className="relative max-w-7xl mx-auto px-4 py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Brand Section */}
-          <div className="space-y-4">
+          <motion.div 
+            className="space-y-4"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
             <div className="flex items-center gap-2">
-              <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
+              <motion.div 
+                className="h-10 w-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-lg"
+                whileHover={{ rotate: 360, scale: 1.1 }}
+                transition={{ duration: 0.6 }}
+              >
                 <span className="text-primary-foreground font-bold text-xl">M</span>
-              </div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
+              </motion.div>
+              <span className="text-2xl font-bold text-gradient">
                 Mediverse
               </span>
             </div>
@@ -33,40 +45,30 @@ const Footer = () => {
               Your trusted platform for finding verified doctors, booking appointments, and managing your healthcare needs seamlessly.
             </p>
             <div className="flex gap-3">
-              <a 
-                href="https://facebook.com" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="h-9 w-9 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors"
-              >
-                <Facebook className="h-4 w-4 text-primary" />
-              </a>
-              <a 
-                href="https://twitter.com" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="h-9 w-9 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors"
-              >
-                <Twitter className="h-4 w-4 text-primary" />
-              </a>
-              <a 
-                href="https://instagram.com" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="h-9 w-9 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors"
-              >
-                <Instagram className="h-4 w-4 text-primary" />
-              </a>
-              <a 
-                href="https://linkedin.com" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="h-9 w-9 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors"
-              >
-                <Linkedin className="h-4 w-4 text-primary" />
-              </a>
+              {[
+                { icon: Facebook, href: "https://facebook.com" },
+                { icon: Twitter, href: "https://twitter.com" },
+                { icon: Instagram, href: "https://instagram.com" },
+                { icon: Linkedin, href: "https://linkedin.com" },
+              ].map((social, index) => (
+                <motion.a
+                  key={social.href}
+                  href={social.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-10 w-10 rounded-xl bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-all border border-primary/20"
+                  whileHover={{ scale: 1.1, y: -2 }}
+                  whileTap={{ scale: 0.9 }}
+                  initial={{ opacity: 0, y: 10 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.1, duration: 0.3 }}
+                >
+                  <social.icon className="h-4 w-4 text-primary" />
+                </motion.a>
+              ))}
             </div>
-          </div>
+          </motion.div>
 
           {/* Quick Links */}
           <div className="space-y-4">

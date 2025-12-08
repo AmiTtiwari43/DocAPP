@@ -2,9 +2,12 @@ import React, { useState } from 'react';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { Separator } from './ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import RescheduleModal from './RescheduleModal';
-import { Calendar, Clock, MapPin, RefreshCw } from 'lucide-react';
+import { Calendar, Clock, MapPin, RefreshCw, User, Mail, Phone, CalendarCheck } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
+import { motion } from 'framer-motion';
 
 const AppointmentCard = ({ appointment, onUpdate }) => {
   const { user } = useAppContext();
@@ -32,55 +35,155 @@ const AppointmentCard = ({ appointment, onUpdate }) => {
            appointment.status !== 'cancelled';
   };
 
+  const isDoctorView = user?.role === 'doctor' && appointment.patientId;
+  const bookingDate = appointment.createdAt 
+    ? new Date(appointment.createdAt).toLocaleString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      })
+    : null;
+
   return (
     <>
-      <Card>
+      <Card className="border-2 premium-shadow card-hover">
         <CardContent className="pt-6">
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
               <div className="flex items-start gap-4">
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Calendar className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-bold text-lg">
-                    {appointment.doctorId?.name || appointment.patientId?.name || 'Appointment'}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {appointment.doctorId?.specialization || 'Patient'}
-                  </p>
-                  <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      {new Date(appointment.date).toLocaleDateString()}
+                <motion.div 
+                  className="h-14 w-14 rounded-xl bg-gradient-primary flex items-center justify-center shadow-lg flex-shrink-0"
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {isDoctorView ? (
+                    <User className="h-7 w-7 text-primary-foreground" />
+                  ) : (
+                    <Calendar className="h-7 w-7 text-primary-foreground" />
+                  )}
+                </motion.div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-lg text-foreground">
+                        {isDoctorView 
+                          ? appointment.patientId?.name || 'Patient'
+                          : appointment.doctorId?.name || 'Doctor'}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {isDoctorView 
+                          ? `Patient Appointment`
+                          : appointment.doctorId?.specialization || 'Specialization'}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      {appointment.slot}
+                    <Badge variant={getStatusVariant(appointment.status)} className="capitalize shrink-0">
+                      {appointment.status}
+                    </Badge>
+                  </div>
+
+                  {/* Patient Details for Doctor View */}
+                  {isDoctorView && appointment.patientId && (
+                    <div className="mb-3 p-3 bg-muted/50 rounded-lg border border-border/50">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-primary" />
+                          <span className="text-muted-foreground">Patient:</span>
+                          <span className="font-medium">{appointment.patientId.name}</span>
+                        </div>
+                        {appointment.patientId.email && (
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-4 w-4 text-primary" />
+                            <span className="text-muted-foreground">Email:</span>
+                            <span className="font-medium truncate">{appointment.patientId.email}</span>
+                          </div>
+                        )}
+                        {appointment.patientId.phone && (
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-primary" />
+                            <span className="text-muted-foreground">Phone:</span>
+                            <span className="font-medium">{appointment.patientId.phone}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    {appointment.doctorId?.city && (
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-4 w-4" />
-                        {appointment.doctorId.city}
+                  )}
+
+                  {/* Appointment Details */}
+                  <div className="flex flex-wrap items-center gap-4 text-sm">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-1.5 text-muted-foreground cursor-help">
+                            <Calendar className="h-4 w-4 text-primary" />
+                            <span>{new Date(appointment.date).toLocaleDateString('en-US', { 
+                              weekday: 'short', 
+                              year: 'numeric', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Appointment Date</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-1.5 text-muted-foreground cursor-help">
+                            <Clock className="h-4 w-4 text-primary" />
+                            <span className="font-medium">{appointment.slot}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Time Slot</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    {bookingDate && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-1.5 text-muted-foreground cursor-help">
+                              <CalendarCheck className="h-4 w-4 text-primary" />
+                              <span className="text-xs">Booked: {bookingDate}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Booking was made at this time</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+
+                    {appointment.doctorId?.city && !isDoctorView && (
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <MapPin className="h-4 w-4 text-primary" />
+                        <span>{appointment.doctorId.city}</span>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <Badge variant={getStatusVariant(appointment.status)}>
-                {appointment.status}
-              </Badge>
+            <div className="flex flex-col items-end gap-2 shrink-0">
               {canReschedule() && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowReschedule(true)}
-                >
-                  <RefreshCw className="h-3 w-3 mr-1" />
-                  Reschedule
-                </Button>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowReschedule(true)}
+                    className="border-2"
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    Reschedule
+                  </Button>
+                </motion.div>
               )}
             </div>
           </div>

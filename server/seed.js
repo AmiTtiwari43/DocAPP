@@ -18,6 +18,37 @@ const specializations = [
   'Ophthalmologist', 'Gynecologist', 'Urologist'
 ];
 
+const clinicAddresses = {
+  'Delhi': [
+    { street: '123 MG Road', zipCode: '110001', state: 'Delhi', fullAddress: '123 MG Road, Delhi - 110001' },
+    { street: '456 Connaught Place', zipCode: '110001', state: 'Delhi', fullAddress: '456 Connaught Place, Delhi - 110001' },
+    { street: '789 Rajpath', zipCode: '110011', state: 'Delhi', fullAddress: '789 Rajpath, Delhi - 110011' },
+  ],
+  'Mumbai': [
+    { street: '321 Marine Drive', zipCode: '400020', state: 'Maharashtra', fullAddress: '321 Marine Drive, Mumbai - 400020' },
+    { street: '654 Fort Area', zipCode: '400023', state: 'Maharashtra', fullAddress: '654 Fort Area, Mumbai - 400023' },
+  ],
+  'Bangalore': [
+    { street: '111 MG Road', zipCode: '560001', state: 'Karnataka', fullAddress: '111 MG Road, Bangalore - 560001' },
+    { street: '222 Brigade Road', zipCode: '560025', state: 'Karnataka', fullAddress: '222 Brigade Road, Bangalore - 560025' },
+  ],
+  'Pune': [
+    { street: '333 FC Road', zipCode: '411004', state: 'Maharashtra', fullAddress: '333 FC Road, Pune - 411004' },
+  ],
+  'Hyderabad': [
+    { street: '444 HITEC City', zipCode: '500081', state: 'Telangana', fullAddress: '444 HITEC City, Hyderabad - 500081' },
+  ],
+  'Chennai': [
+    { street: '555 Mount Road', zipCode: '600002', state: 'Tamil Nadu', fullAddress: '555 Mount Road, Chennai - 600002' },
+  ],
+  'Kolkata': [
+    { street: '666 AJC Bose Road', zipCode: '700001', state: 'West Bengal', fullAddress: '666 AJC Bose Road, Kolkata - 700001' },
+  ],
+  'Ahmedabad': [
+    { street: '777 CG Road', zipCode: '380009', state: 'Gujarat', fullAddress: '777 CG Road, Ahmedabad - 380009' },
+  ]
+};
+
 const names = [
   'Dr. Rajesh Kumar', 'Dr. Priya Sharma', 'Dr. Amit Patel', 'Dr. Sneha Reddy',
   'Dr. Vikram Singh', 'Dr. Anjali Mehta', 'Dr. Rohit Gupta', 'Dr. Kavita Nair',
@@ -82,13 +113,18 @@ const seedData = async () => {
       });
 
       const isVerified = i < 7; // First 7 verified, last 3 pending
+      const doctorCity = cities[i % cities.length];
+      const cityAddresses = clinicAddresses[doctorCity] || [];
+      const selectedAddress = cityAddresses[i % cityAddresses.length];
+      
       const doctor = await Doctor.create({
         userId: user._id,
         name: names[i],
         specialization: specializations[i % specializations.length],
         experience: Math.floor(Math.random() * 20) + 5,
         fees: Math.floor(Math.random() * 2000) + 500,
-        city: cities[i % cities.length],
+        city: doctorCity,
+        address: selectedAddress,
         bio: `Experienced ${specializations[i % specializations.length]} with ${Math.floor(Math.random() * 20) + 5} years of practice.`,
         gender: i % 2 === 0 ? 'male' : 'female',
         licenseNumber: `LIC${1000 + i}`,
@@ -121,6 +157,7 @@ const seedData = async () => {
       experience: 15,
       fees: 1000,
       city: 'Delhi',
+      address: clinicAddresses['Delhi'][0],
       bio: 'Experienced general physician ready to help.',
       gender: 'male',
       licenseNumber: 'LIC9999',
@@ -224,7 +261,9 @@ const seedData = async () => {
           doctorId: appointment.doctorId,
           amount: doctor.fees,
           status: 'completed',
-          transactionId: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          adminStatus: ['pending', 'approved', 'rejected'][Math.floor(Math.random() * 3)], // Random status for demo
+          transactionId: `UPI_${Date.now()}_${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+          paymentMethod: 'UPI',
         });
         payments.push(payment);
         appointment.paymentId = payment._id;

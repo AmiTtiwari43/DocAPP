@@ -191,3 +191,182 @@ exports.getTopRatedDoctors = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// Doctor adds reply to a review
+exports.addDoctorReply = async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const { reply } = req.body;
+
+    if (!reply) {
+      return res.status(400).json({ success: false, message: 'Reply is required' });
+    }
+
+    const review = await Review.findById(reviewId).populate('doctorId');
+
+    if (!review) {
+      return res.status(404).json({ success: false, message: 'Review not found' });
+    }
+
+    // Check if user is the doctor
+    if (review.doctorId.userId.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Only the doctor can reply to their review' });
+    }
+
+    review.doctorReply = reply;
+    review.replyDate = new Date();
+    await review.save();
+
+    // Notify patient about doctor's reply
+    await Notification.create({
+      userId: review.patientId,
+      type: 'doctor_reply',
+      message: `Dr. ${review.doctorId.name} replied to your review`,
+      link: `/doctor/${review.doctorId._id}`,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: review,
+      message: 'Reply added successfully',
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// User adds reply to another user's review
+exports.addUserReply = async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const { reply } = req.body;
+
+    if (!reply) {
+      return res.status(400).json({ success: false, message: 'Reply is required' });
+    }
+
+    const review = await Review.findById(reviewId);
+
+    if (!review) {
+      return res.status(404).json({ success: false, message: 'Review not found' });
+    }
+
+    // Add user reply (allow anyone to reply)
+    review.userReplies.push({
+      userId: req.user.id,
+      reply,
+      replyDate: new Date(),
+    });
+
+    await review.save();
+
+    // Notify original reviewer if not the same person
+    if (review.patientId.toString() !== req.user.id) {
+      await Notification.create({
+        userId: review.patientId,
+        type: 'user_reply',
+        message: `Someone replied to your review`,
+        link: `/doctor/${review.doctorId}`,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: review,
+      message: 'Reply added successfully',
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Get rating distribution for a doctor
+exports.getRatingDistribution = async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+
+    const reviews = await Review.find({ doctorId });
+
+    const distribution = {
+      5: 0,
+      4: 0,
+      3: 0,
+      2: 0,
+      1: 0,
+    };
+
+    reviews.forEach((review) => {
+      distribution[review.rating]++;
+    });
+
+    const totalReviews = reviews.length;
+    const avgRating = totalReviews > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        distribution,
+        avgRating,
+        totalReviews,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Like a review
+exports.likeReview = async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const review = await Review.findById(reviewId);
+
+    if (!review) {
+      return res.status(404).json({ success: false, message: 'Review not found' });
+    }
+
+    // Check if user already liked
+    if (review.likes.includes(req.user.id)) {
+      return res.status(400).json({ success: false, message: 'You already liked this review' });
+    }
+
+    review.likes.push(req.user.id);
+    await review.save();
+
+    res.status(200).json({
+      success: true,
+      data: review,
+      message: 'Review liked successfully',
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Unlike a review
+exports.unlikeReview = async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const review = await Review.findById(reviewId);
+
+    if (!review) {
+      return res.status(404).json({ success: false, message: 'Review not found' });
+    }
+
+    // Check if user liked the review
+    if (!review.likes.includes(req.user.id)) {
+      return res.status(400).json({ success: false, message: 'You have not liked this review' });
+    }
+
+    review.likes = review.likes.filter(id => id.toString() !== req.user.id);
+    await review.save();
+
+    res.status(200).json({
+      success: true,
+      data: review,
+      message: 'Like removed successfully',
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

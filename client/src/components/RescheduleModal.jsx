@@ -74,10 +74,15 @@ const RescheduleModal = ({ open, onOpenChange, appointment, onSuccess }) => {
         onOpenChange(false);
       }
     } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Error rescheduling appointment';
+      const bookingDetails = error.response?.data?.bookingDetails;
+      
       toast({
         variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.message || 'Error rescheduling appointment',
+        title: "Reschedule Failed",
+        description: bookingDetails 
+          ? `${errorMessage}. This slot was booked by ${bookingDetails.patientName} at ${bookingDetails.bookedAt}.`
+          : errorMessage,
       });
     } finally {
       setLoading(false);

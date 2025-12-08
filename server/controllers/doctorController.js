@@ -245,7 +245,7 @@ exports.replyToReview = async (req, res) => {
 // Create doctor profile (only for doctors)
 exports.createDoctorProfile = async (req, res) => {
   try {
-    const { name, specialization, experience, fees, city, bio, gender, licenseNumber } = req.body;
+    const { name, specialization, experience, fees, city, bio, gender, licenseNumber, address } = req.body;
 
     // Validation
     if (!name || !specialization || !experience || !fees || !city) {
@@ -268,6 +268,7 @@ exports.createDoctorProfile = async (req, res) => {
       bio,
       gender,
       licenseNumber,
+      address,
     });
 
     await doctor.save();

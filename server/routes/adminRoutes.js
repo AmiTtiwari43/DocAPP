@@ -1,5 +1,6 @@
 const express = require('express');
 const adminController = require('../controllers/adminController');
+const paymentController = require('../controllers/paymentController');
 const authMiddleware = require('../middleware/auth');
 const router = express.Router();
 
@@ -25,6 +26,11 @@ router.patch('/doctors/unverify/:id', authMiddleware, requireAdmin, adminControl
 
 // Appointments
 router.get('/appointments', authMiddleware, requireAdmin, adminController.getAllAppointments);
+
+// Payments (admin)
+router.get('/payments', authMiddleware, requireAdmin, paymentController.adminGetPayments);
+router.patch('/payments/:id/approve', authMiddleware, requireAdmin, paymentController.adminApprovePayment);
+router.patch('/payments/:id/reject', authMiddleware, requireAdmin, paymentController.adminRejectPayment);
 
 // Reviews
 router.delete('/reviews/:id', authMiddleware, requireAdmin, adminController.deleteReviewAdmin);

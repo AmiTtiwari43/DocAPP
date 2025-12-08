@@ -20,16 +20,35 @@ exports.createAppointment = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Doctor not found' });
     }
 
-    // Check if appointment already exists for this slot
+    // Normalize date to start of day for comparison
+    const appointmentDate = new Date(date);
+    appointmentDate.setHours(0, 0, 0, 0);
+    const nextDay = new Date(appointmentDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    // Check if appointment already exists for this slot (prevent double booking)
+    // Only confirmed and pending appointments block the slot
     const existingAppointment = await Appointment.findOne({
       doctorId,
-      date: new Date(date).toDateString(),
+      date: { $gte: appointmentDate, $lt: nextDay },
       slot,
-      status: { $ne: 'cancelled' },
-    });
+      status: { $in: ['pending', 'confirmed'] }, // Only pending and confirmed block slots
+    }).populate('patientId', 'name email');
 
     if (existingAppointment) {
-      return res.status(400).json({ success: false, message: 'Slot already booked' });
+      const patientName = existingAppointment.patientId?.name || 'Another patient';
+      const bookingTime = existingAppointment.createdAt 
+        ? new Date(existingAppointment.createdAt).toLocaleString() 
+        : 'recently';
+      return res.status(400).json({ 
+        success: false, 
+        message: `Slot already booked by ${patientName} at ${bookingTime}`,
+        bookingDetails: {
+          patientName: patientName,
+          bookedAt: bookingTime,
+          status: existingAppointment.status
+        }
+      });
     }
 
     const appointment = new Appointment({
@@ -77,8 +96,8 @@ exports.getAppointmentsByUser = async (req, res) => {
 
     const appointments = await Appointment.find(filter)
       .populate('doctorId', 'name specialization city')
-      .populate('patientId', 'name email')
-      .sort({ date: -1 });
+      .populate('patientId', 'name email phone')
+      .sort({ date: -1, createdAt: -1 });
 
     res.status(200).json({ success: true, data: appointments });
   } catch (error) {
@@ -138,17 +157,57 @@ exports.getAvailableSlots = async (req, res) => {
       '16:00-17:00',
     ];
 
-    // Find booked slots
+    // Normalize date to start of day for comparison
+    const appointmentDate = new Date(date);
+    appointmentDate.setHours(0, 0, 0, 0);
+    const nextDay = new Date(appointmentDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    // Find booked slots with patient details
     const bookedAppointments = await Appointment.find({
       doctorId,
-      date: new Date(date).toDateString(),
-      status: { $ne: 'cancelled' },
+      date: { $gte: appointmentDate, $lt: nextDay },
+      status: { $in: ['pending', 'confirmed'] }, // Only pending and confirmed are considered booked
+    })
+      .populate('patientId', 'name email')
+      .sort({ createdAt: -1 });
+
+    // Create a map of slot -> booking details
+    const slotDetails = {};
+    bookedAppointments.forEach((apt) => {
+      slotDetails[apt.slot] = {
+        isBooked: true,
+        patientName: apt.patientId?.name || 'Unknown',
+        patientEmail: apt.patientId?.email || '',
+        bookedAt: apt.createdAt ? new Date(apt.createdAt).toLocaleString() : 'Unknown',
+        status: apt.status,
+        appointmentId: apt._id,
+      };
     });
 
-    const bookedSlots = bookedAppointments.map((apt) => apt.slot);
-    const availableSlots = allSlots.filter((slot) => !bookedSlots.includes(slot));
+    // Create response with both available and booked slots
+    const slotsWithDetails = allSlots.map((slot) => {
+      if (slotDetails[slot]) {
+        return {
+          slot,
+          available: false,
+          ...slotDetails[slot],
+        };
+      }
+      return {
+        slot,
+        available: true,
+      };
+    });
 
-    res.status(200).json({ success: true, data: availableSlots });
+    const availableSlots = allSlots.filter((slot) => !slotDetails[slot]);
+
+    res.status(200).json({ 
+      success: true, 
+      data: availableSlots, // Keep backward compatibility
+      slotsWithDetails, // New detailed information
+      bookedSlots: Object.keys(slotDetails), // List of booked slots
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -231,17 +290,35 @@ exports.rescheduleAppointment = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Date and slot are required' });
     }
 
-    // Check if new slot is available
+    // Normalize date to start of day for comparison
+    const appointmentDate = new Date(date);
+    appointmentDate.setHours(0, 0, 0, 0);
+    const nextDay = new Date(appointmentDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    // Check if new slot is available (prevent double booking)
     const existingAppointment = await Appointment.findOne({
       doctorId: appointment.doctorId._id,
-      date: new Date(date).toDateString(),
+      date: { $gte: appointmentDate, $lt: nextDay },
       slot,
-      status: { $ne: 'cancelled' },
+      status: { $in: ['pending', 'confirmed'] }, // Only pending and confirmed block slots
       _id: { $ne: appointment._id },
-    });
+    }).populate('patientId', 'name email');
 
     if (existingAppointment) {
-      return res.status(400).json({ success: false, message: 'Slot already booked' });
+      const patientName = existingAppointment.patientId?.name || 'Another patient';
+      const bookingTime = existingAppointment.createdAt 
+        ? new Date(existingAppointment.createdAt).toLocaleString() 
+        : 'recently';
+      return res.status(400).json({ 
+        success: false, 
+        message: `Slot already booked by ${patientName} at ${bookingTime}`,
+        bookingDetails: {
+          patientName: patientName,
+          bookedAt: bookingTime,
+          status: existingAppointment.status
+        }
+      });
     }
 
     // Update appointment

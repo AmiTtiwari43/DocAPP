@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import CitySelector from './CitySelector';
 import { Bell, LogOut, User, Menu, X, Sun, Moon, Settings, UserCircle, LayoutDashboard, Search, Heart, Shield } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { motion } from 'framer-motion';
 
 const Navbar = () => {
   const { user, logout } = useAppContext();
@@ -34,15 +35,19 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <nav className="sticky top-0 z-50 w-full border-b glass-effect">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+            <Link to="/" className="flex items-center gap-2 group">
+              <motion.div 
+                className="h-10 w-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110"
+                whileHover={{ rotate: 360 }}
+                transition={{ duration: 0.6, ease: "easeInOut" }}
+              >
                 <span className="text-primary-foreground font-bold text-lg">M</span>
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
+              </motion.div>
+              <span className="text-xl font-bold text-gradient">
                 Mediverse
               </span>
             </Link>
@@ -94,9 +99,18 @@ const Navbar = () => {
                     </Button>
                   </Link>
                 )}
-                <Button variant="ghost" size="icon" onClick={toggleTheme} title="Toggle theme">
-                  {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                </Button>
+                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                  <Button variant="ghost" size="icon" onClick={toggleTheme} title="Toggle theme" className="relative overflow-hidden">
+                    <motion.div
+                      key={theme}
+                      initial={{ rotate: -180, opacity: 0 }}
+                      animate={{ rotate: 0, opacity: 1 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                    </motion.div>
+                  </Button>
+                </motion.div>
                 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -134,14 +148,25 @@ const Navbar = () => {
               </>
             ) : (
               <>
-                <Button variant="ghost" size="icon" onClick={toggleTheme} title="Toggle theme">
-                  {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                </Button>
+                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                  <Button variant="ghost" size="icon" onClick={toggleTheme} title="Toggle theme" className="relative overflow-hidden">
+                    <motion.div
+                      key={theme}
+                      initial={{ rotate: -180, opacity: 0 }}
+                      animate={{ rotate: 0, opacity: 1 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                    </motion.div>
+                  </Button>
+                </motion.div>
                 <Link to="/login">
-                  <Button variant="ghost">Login</Button>
+                  <Button variant="ghost" className="hover:bg-accent/50">Login</Button>
                 </Link>
                 <Link to="/signup">
-                  <Button>Sign Up</Button>
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Button className="bg-gradient-primary hover:opacity-90 shadow-lg">Sign Up</Button>
+                  </motion.div>
                 </Link>
               </>
             )}

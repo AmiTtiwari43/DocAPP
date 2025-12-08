@@ -35,6 +35,8 @@ const appointmentSchema = new mongoose.Schema({
   notes: {
     type: String,
   },
+}, {
+  timestamps: true, // Adds createdAt and updatedAt automatically
 });
 
 const Appointment = mongoose.model('Appointment', appointmentSchema);

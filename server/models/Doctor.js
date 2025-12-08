@@ -45,6 +45,13 @@ const doctorSchema = new mongoose.Schema({
     startTime: String,
     endTime: String,
   },
+  address: {
+    street: String,
+    city: String,
+    state: String,
+    zipCode: String,
+    fullAddress: String,
+  },
   status: {
     type: String,
     enum: ['pending', 'verified', 'rejected'],

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -10,15 +10,17 @@ import { Skeleton } from '../components/ui/skeleton';
 import { Separator } from '../components/ui/separator';
 import { useToast } from '../components/ui/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Progress } from '../components/ui/progress';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import AppointmentCard from '../components/AppointmentCard';
 import api from '../utils/api';
-import { 
-  Calendar, 
-  Star, 
-  Users, 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
+import {
+  Calendar,
+  Star,
+  Users,
+  CheckCircle,
+  XCircle,
+  Clock,
   TrendingUp,
   Edit,
   Save,
@@ -31,8 +33,38 @@ import {
   MessageSquare,
   Trash2,
   BarChart3,
-  Activity
+  Activity,
+  RefreshCw
 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip as ChartTooltip,
+  Legend,
+  Filler,
+  ArcElement,
+} from 'chart.js';
+import { Line, Bar } from 'react-chartjs-2';
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  ChartTooltip,
+  Legend,
+  Filler,
+  ArcElement
+);
 
 const Dashboard = () => {
   const { user } = useAppContext();
@@ -44,7 +76,8 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({
-    name: '', specialization: '', experience: '', fees: '', city: '', bio: '', gender: '', licenseNumber: ''
+    name: '', specialization: '', experience: '', fees: '', city: '', bio: '', gender: '', licenseNumber: '',
+    address: { street: '', city: '', state: '', zipCode: '', fullAddress: '' }
   });
 
   // Admin states
@@ -59,9 +92,25 @@ const Dashboard = () => {
     analytics: null
   });
   const [adminLoading, setAdminLoading] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+  const analyticsIntervalRef = useRef(null);
 
   useEffect(() => {
     fetchData();
+    
+    // Set up real-time polling for admin analytics (every 30 seconds)
+    if (user?.role === 'admin') {
+      analyticsIntervalRef.current = setInterval(() => {
+        fetchAdminData();
+        setLastUpdate(new Date());
+      }, 30000); // 30 seconds
+    }
+    
+    return () => {
+      if (analyticsIntervalRef.current) {
+        clearInterval(analyticsIntervalRef.current);
+      }
+    };
   }, [user]);
 
   const fetchData = async () => {
@@ -109,6 +158,7 @@ const Dashboard = () => {
           bio: response.data.data.bio || '',
           gender: response.data.data.gender || '',
           licenseNumber: response.data.data.licenseNumber || '',
+          address: response.data.data.address || { street: '', city: '', state: '', zipCode: '', fullAddress: '' },
         });
       }
     } catch (error) {
@@ -132,7 +182,7 @@ const Dashboard = () => {
         api.get('/admin/users'),
         api.get('/admin/doctors/pending'),
         api.get('/admin/appointments'),
-        api.get('/payments/history').catch(() => ({ data: { data: [] } })),
+        api.get('/admin/payments').catch(() => ({ data: { data: [] } })),
         api.get('/analytics/admin').catch(() => ({ data: { data: null } }))
       ]);
       
@@ -141,15 +191,66 @@ const Dashboard = () => {
       const doctors = allUsers.filter(u => u.role === 'doctor');
       const patients = allUsers.filter(u => u.role === 'patient');
       
-      // Fetch all reviews
-      let allReviews = [];
-      try {
-        const reviewsRes = await api.get('/admin/reviews');
-        allReviews = reviewsRes.data.data || [];
-      } catch (err) {
-        console.log('Reviews endpoint not available');
+      // Reviews endpoint is not available on backend; use empty array to avoid 404 noise
+      const allReviews = [];
+
+      // Build fallback analytics if analytics endpoint didn't return data
+      const rawAnalytics = analyticsRes?.data?.data;
+      let analytics = rawAnalytics;
+      if (!analytics) {
+        // Prepare last 12 months buckets
+        const months = [];
+        const now = new Date();
+        for (let i = 11; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const key = `${d.getFullYear()}-${d.getMonth()}`;
+          months.push({ key, month: d.toLocaleString('default', { month: 'short' }) + ' ' + d.getFullYear() });
+        }
+
+        const patientMap = {};
+        const doctorMap = {};
+        const salesMap = {};
+        const revenueMap = {};
+
+        const payments = paymentsRes.data.data || [];
+
+        // Count users by createdAt
+        allUsers.forEach(u => {
+          if (!u.createdAt) return;
+          const d = new Date(u.createdAt);
+          const key = `${d.getFullYear()}-${d.getMonth()}`;
+          if (u.role === 'patient') patientMap[key] = (patientMap[key] || 0) + 1;
+          if (u.role === 'doctor') doctorMap[key] = (doctorMap[key] || 0) + 1;
+        });
+
+        // Count sales and revenue by payment createdAt
+        payments.forEach(p => {
+          if (!p.createdAt) return;
+          const d = new Date(p.createdAt);
+          const key = `${d.getFullYear()}-${d.getMonth()}`;
+          if (p.status === 'completed') {
+            salesMap[key] = (salesMap[key] || 0) + 1;
+            revenueMap[key] = (revenueMap[key] || 0) + (p.amount || 0);
+          }
+        });
+
+        const monthlyPatients = months.map(m => ({ month: m.month, count: patientMap[m.key] || 0 }));
+        const monthlyDoctors = months.map(m => ({ month: m.month, count: doctorMap[m.key] || 0 }));
+        const monthlySales = months.map(m => ({ month: m.month, sales: salesMap[m.key] || 0 }));
+        const monthlyRevenue = months.map(m => ({ month: m.month, revenue: revenueMap[m.key] || 0 }));
+
+        analytics = {
+          monthlyPatients,
+          monthlyDoctors,
+          monthlySales,
+          monthlyRevenue,
+          totalPatients: patients.length,
+          totalDoctors: doctors.length,
+          totalAppointments: (appRes.data.data || []).length,
+          totalRevenue: (payments.reduce((s, p) => s + (p.status === 'completed' ? (p.amount || 0) : 0), 0)),
+        };
       }
-      
+
       setAdminData({
         users: allUsers,
         doctors,
@@ -158,7 +259,7 @@ const Dashboard = () => {
         allAppointments: appRes.data.data || [],
         payments: paymentsRes.data.data || [],
         reviews: allReviews,
-        analytics: analyticsRes.data.data
+        analytics,
       });
     } catch (error) {
       toast({
@@ -168,26 +269,6 @@ const Dashboard = () => {
       });
     } finally {
       setAdminLoading(false);
-    }
-  };
-
-  const handleRequestVerification = async () => {
-    try {
-      const response = await api.post('/doctors/request-verification');
-      if (response.data.success) {
-        toast({
-          variant: "success",
-          title: "Success",
-          description: "Verification request submitted!",
-        });
-        fetchDoctorProfile();
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.message || 'Failed to submit request',
-      });
     }
   };
 
@@ -301,6 +382,26 @@ const Dashboard = () => {
     }
   };
 
+  const handleRequestVerification = async () => {
+    try {
+      const response = await api.post('/doctors/request-verification', {});
+      if (response.data.success) {
+        setDoctorProfile(response.data.data);
+        toast({
+          variant: "success",
+          title: "Success",
+          description: "Verification request submitted successfully!",
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.message || 'Error submitting verification request',
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background py-12">
@@ -318,10 +419,15 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background py-8">
       <div className="max-w-7xl mx-auto px-4">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back, {user?.name}!</p>
-        </div>
+        <motion.div 
+          className="mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <h1 className="text-4xl md:text-5xl font-bold mb-2 text-gradient">Dashboard</h1>
+          <p className="text-muted-foreground text-lg">Welcome back, {user?.name}!</p>
+        </motion.div>
 
         {/* Patient Dashboard */}
         {user?.role === 'patient' && (
@@ -580,6 +686,59 @@ const Dashboard = () => {
                           rows={4}
                         />
                       </div>
+                      <div className="border-t pt-6">
+                        <h3 className="text-lg font-semibold mb-4">Clinic Address</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm font-medium mb-2 block">Street Address</label>
+                            <Input
+                              name="address.street"
+                              placeholder="e.g., 123 Main Street"
+                              value={profileData.address?.street || ''}
+                              onChange={(e) => setProfileData({ 
+                                ...profileData, 
+                                address: { ...profileData.address, street: e.target.value } 
+                              })}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium mb-2 block">State</label>
+                            <Input
+                              name="address.state"
+                              placeholder="e.g., Maharashtra"
+                              value={profileData.address?.state || ''}
+                              onChange={(e) => setProfileData({ 
+                                ...profileData, 
+                                address: { ...profileData.address, state: e.target.value } 
+                              })}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium mb-2 block">ZIP Code</label>
+                            <Input
+                              name="address.zipCode"
+                              placeholder="e.g., 411004"
+                              value={profileData.address?.zipCode || ''}
+                              onChange={(e) => setProfileData({ 
+                                ...profileData, 
+                                address: { ...profileData.address, zipCode: e.target.value } 
+                              })}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium mb-2 block">Full Address (Summary)</label>
+                            <Input
+                              name="address.fullAddress"
+                              placeholder="e.g., 123 Main St, City - 411004"
+                              value={profileData.address?.fullAddress || ''}
+                              onChange={(e) => setProfileData({ 
+                                ...profileData, 
+                                address: { ...profileData.address, fullAddress: e.target.value } 
+                              })}
+                            />
+                          </div>
+                        </div>
+                      </div>
                       <div className="flex gap-2">
                         <Button type="submit">
                           <Save className="h-4 w-4 mr-2" />
@@ -656,51 +815,80 @@ const Dashboard = () => {
               {doctorStats && (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Total Reviews</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-3xl font-bold">{doctorStats.totalReviews}</div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Average Rating</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-3xl font-bold flex items-center gap-2">
-                          {doctorStats.avgRating.toFixed(1)}
-                          <Star className="h-6 w-6 fill-yellow-400 text-yellow-400" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Total Appointments</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-3xl font-bold">{doctorStats.totalAppointments}</div>
-                      </CardContent>
-                    </Card>
+                    {[
+                      { title: "Total Reviews", value: doctorStats.totalReviews, icon: MessageSquare, color: "text-primary" },
+                      { title: "Average Rating", value: doctorStats.avgRating.toFixed(1), icon: Star, color: "text-yellow-500", showStar: true },
+                      { title: "Total Appointments", value: doctorStats.totalAppointments, icon: Calendar, color: "text-accent" },
+                    ].map((stat, index) => (
+                      <motion.div
+                        key={stat.title}
+                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ delay: index * 0.1, duration: 0.5 }}
+                        whileHover={{ y: -5, scale: 1.02 }}
+                      >
+                        <Card className="border-2 premium-shadow card-hover">
+                          <CardHeader>
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-lg">{stat.title}</CardTitle>
+                              <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <div className={`text-3xl font-bold ${stat.color} flex items-center gap-2 mb-2`}>
+                              {stat.value}
+                              {stat.showStar && <Star className="h-6 w-6 fill-yellow-400 text-yellow-400" />}
+                            </div>
+                            {stat.title === "Average Rating" && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="mt-2">
+                                      <Progress 
+                                        value={(parseFloat(stat.value) / 5) * 100} 
+                                        className="h-2"
+                                      />
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Rating out of 5 stars</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    ))}
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Pending</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">{doctorStats.pendingAppointments}</div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Completed</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">{doctorStats.completedAppointments}</div>
-                      </CardContent>
-                    </Card>
+                    {[
+                      { title: "Pending", value: doctorStats.pendingAppointments, color: "text-orange-500" },
+                      { title: "Completed", value: doctorStats.completedAppointments, color: "text-green-500" },
+                    ].map((stat, index) => (
+                      <motion.div
+                        key={stat.title}
+                        initial={{ opacity: 0, x: index === 0 ? -20 : 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.3 + index * 0.1, duration: 0.5 }}
+                        whileHover={{ y: -5, scale: 1.02 }}
+                      >
+                        <Card className="border-2 premium-shadow card-hover">
+                          <CardHeader>
+                            <CardTitle className="text-lg">{stat.title}</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className={`text-2xl font-bold ${stat.color} mb-2`}>{stat.value}</div>
+                            {doctorStats.totalAppointments > 0 && (
+                              <Progress 
+                                value={(stat.value / doctorStats.totalAppointments) * 100} 
+                                className="h-2"
+                              />
+                            )}
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    ))}
                   </div>
                 </>
               )}
@@ -744,94 +932,421 @@ const Dashboard = () => {
 
             {/* Analytics Tab */}
             <TabsContent value="analytics" className="space-y-4">
+              {/* Header with refresh button */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold">Global Analytics</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Last updated: {lastUpdate.toLocaleTimeString()}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    fetchAdminData();
+                    setLastUpdate(new Date());
+                  }}
+                  disabled={adminLoading}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${adminLoading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
+
+              {/* Key Metrics Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="border-2">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Patients</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{adminData.patients.length}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Registered users</p>
-                  </CardContent>
-                </Card>
-                
-                <Card className="border-2">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Doctors</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{adminData.doctors.length}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Verified & pending</p>
-                  </CardContent>
-                </Card>
-                
-                <Card className="border-2">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Appointments</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{adminData.allAppointments.length}</div>
-                    <p className="text-xs text-muted-foreground mt-1">All time bookings</p>
-                  </CardContent>
-                </Card>
-                
-                <Card className="border-2">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Pending Approvals</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold text-orange-600">{adminData.pendingDoctors.length}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Doctor verifications</p>
-                  </CardContent>
-                </Card>
-              </div>
-              
-              <div className="grid md:grid-cols-2 gap-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Recent Activity</CardTitle>
-                    <CardDescription>Latest platform updates</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <Activity className="h-5 w-5 text-primary" />
-                        <div>
-                          <p className="text-sm font-medium">Platform is running smoothly</p>
-                          <p className="text-xs text-muted-foreground">All systems operational</p>
+                {[
+                  { 
+                    title: "Total Sales", 
+                    value: `₹${((adminData.analytics?.totalRevenue) ?? 0).toLocaleString('en-IN')}`, 
+                    desc: "Total revenue", 
+                    icon: DollarSign, 
+                    color: "text-green-600" 
+                  },
+                  { 
+                    title: "Total Patients", 
+                    value: adminData.analytics?.totalPatients ?? adminData.patients.length, 
+                    desc: "Registered users", 
+                    icon: Users, 
+                    color: "text-primary" 
+                  },
+                  { 
+                    title: "Total Doctors", 
+                    value: adminData.analytics?.totalDoctors ?? adminData.doctors.length, 
+                    desc: "Verified & pending", 
+                    icon: UserCheck, 
+                    color: "text-accent" 
+                  },
+                  { 
+                    title: "Total Appointments", 
+                    value: adminData.analytics?.totalAppointments ?? adminData.allAppointments.length, 
+                    desc: "All time bookings", 
+                    icon: Calendar, 
+                    color: "text-blue-600" 
+                  },
+                ].map((stat, index) => (
+                  <motion.div
+                    key={stat.title}
+                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ delay: index * 0.1, duration: 0.5 }}
+                    whileHover={{ y: -5, scale: 1.02 }}
+                  >
+                    <Card className="border-2 premium-shadow card-hover">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
+                          <stat.icon className={`h-5 w-5 ${stat.color}`} />
                         </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Quick Stats</CardTitle>
-                    <CardDescription>Key metrics overview</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Active Patients</span>
-                        <span className="text-sm font-medium">{adminData.patients.length}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Verified Doctors</span>
-                        <span className="text-sm font-medium">{adminData.doctors.filter(d => d.status === 'verified').length}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Total Reviews</span>
-                        <span className="text-sm font-medium">{adminData.reviews.length}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Completed Appointments</span>
-                        <span className="text-sm font-medium">{adminData.allAppointments.filter(a => a.status === 'completed').length}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                      </CardHeader>
+                      <CardContent>
+                        <div className={`text-3xl font-bold ${stat.color}`}>{stat.value}</div>
+                        <p className="text-xs text-muted-foreground mt-1">{stat.desc}</p>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
               </div>
+
+              {/* Charts Section */}
+              {adminLoading && !adminData.analytics ? (
+                <div className="grid md:grid-cols-2 gap-4">
+                  <Skeleton className="h-80 w-full" />
+                  <Skeleton className="h-80 w-full" />
+                </div>
+              ) : adminData.analytics ? (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {/* Sales/Revenue Chart */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <TrendingUp className="h-5 w-5 text-green-600" />
+                          Sales & Revenue Trend
+                        </CardTitle>
+                        <CardDescription>Monthly revenue over the last 12 months</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-[300px]">
+                          <Line
+                            data={{
+                              labels: adminData.analytics.monthlyRevenue?.map(r => r.month) || [],
+                              datasets: [
+                                {
+                                  label: 'Revenue (₹)',
+                                  data: adminData.analytics.monthlyRevenue?.map(r => r.revenue) || [],
+                                  borderColor: 'rgb(34, 197, 94)',
+                                  backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                                  tension: 0.4,
+                                  fill: true,
+                                  pointRadius: 4,
+                                  pointHoverRadius: 6,
+                                  pointBackgroundColor: 'rgb(34, 197, 94)',
+                                  pointBorderColor: '#fff',
+                                  pointBorderWidth: 2,
+                                },
+                              ],
+                            }}
+                            options={{
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: {
+                                legend: {
+                                  display: true,
+                                  position: 'top',
+                                },
+                                tooltip: {
+                                  mode: 'index',
+                                  intersect: false,
+                                  callbacks: {
+                                    label: function(context) {
+                                      return `Revenue: ₹${context.parsed.y.toLocaleString('en-IN')}`;
+                                    }
+                                  }
+                                },
+                              },
+                              scales: {
+                                y: {
+                                  beginAtZero: true,
+                                  ticks: {
+                                    callback: function(value) {
+                                      return '₹' + value.toLocaleString('en-IN');
+                                    }
+                                  },
+                                  grid: {
+                                    color: 'rgba(0, 0, 0, 0.05)',
+                                  }
+                                },
+                                x: {
+                                  grid: {
+                                    display: false,
+                                  }
+                                }
+                              },
+                              interaction: {
+                                mode: 'nearest',
+                                axis: 'x',
+                                intersect: false
+                              }
+                            }}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Doctors Growth Chart */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <UserCheck className="h-5 w-5 text-accent" />
+                          Doctors Growth
+                        </CardTitle>
+                        <CardDescription>Total doctors count over the last 12 months</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-[300px]">
+                          <Line
+                            data={{
+                              labels: adminData.analytics.monthlyDoctors?.map(d => d.month) || [],
+                              datasets: [
+                                {
+                                  label: 'Total Doctors',
+                                  data: adminData.analytics.monthlyDoctors?.map(d => d.count) || [],
+                                  borderColor: 'rgb(59, 130, 246)',
+                                  backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                  tension: 0.4,
+                                  fill: true,
+                                  pointRadius: 4,
+                                  pointHoverRadius: 6,
+                                  pointBackgroundColor: 'rgb(59, 130, 246)',
+                                  pointBorderColor: '#fff',
+                                  pointBorderWidth: 2,
+                                },
+                              ],
+                            }}
+                            options={{
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: {
+                                legend: {
+                                  display: true,
+                                  position: 'top',
+                                },
+                                tooltip: {
+                                  mode: 'index',
+                                  intersect: false,
+                                  callbacks: {
+                                    label: function(context) {
+                                      return `Doctors: ${context.parsed.y}`;
+                                    }
+                                  }
+                                },
+                              },
+                              scales: {
+                                y: {
+                                  beginAtZero: true,
+                                  ticks: {
+                                    stepSize: 1,
+                                  },
+                                  grid: {
+                                    color: 'rgba(0, 0, 0, 0.05)',
+                                  }
+                                },
+                                x: {
+                                  grid: {
+                                    display: false,
+                                  }
+                                }
+                              },
+                              interaction: {
+                                mode: 'nearest',
+                                axis: 'x',
+                                intersect: false
+                              }
+                            }}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Patients Growth Chart */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                  >
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Users className="h-5 w-5 text-primary" />
+                          Patients Growth
+                        </CardTitle>
+                        <CardDescription>Total patients count over the last 12 months</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-[300px]">
+                          <Line
+                            data={{
+                              labels: adminData.analytics.monthlyPatients?.map(p => p.month) || [],
+                              datasets: [
+                                {
+                                  label: 'Total Patients',
+                                  data: adminData.analytics.monthlyPatients?.map(p => p.count) || [],
+                                  borderColor: 'rgb(168, 85, 247)',
+                                  backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                                  tension: 0.4,
+                                  fill: true,
+                                  pointRadius: 4,
+                                  pointHoverRadius: 6,
+                                  pointBackgroundColor: 'rgb(168, 85, 247)',
+                                  pointBorderColor: '#fff',
+                                  pointBorderWidth: 2,
+                                },
+                              ],
+                            }}
+                            options={{
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: {
+                                legend: {
+                                  display: true,
+                                  position: 'top',
+                                },
+                                tooltip: {
+                                  mode: 'index',
+                                  intersect: false,
+                                  callbacks: {
+                                    label: function(context) {
+                                      return `Patients: ${context.parsed.y}`;
+                                    }
+                                  }
+                                },
+                              },
+                              scales: {
+                                y: {
+                                  beginAtZero: true,
+                                  ticks: {
+                                    stepSize: 1,
+                                  },
+                                  grid: {
+                                    color: 'rgba(0, 0, 0, 0.05)',
+                                  }
+                                },
+                                x: {
+                                  grid: {
+                                    display: false,
+                                  }
+                                }
+                              },
+                              interaction: {
+                                mode: 'nearest',
+                                axis: 'x',
+                                intersect: false
+                              }
+                            }}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Sales Count Chart */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                  >
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <BarChart3 className="h-5 w-5 text-orange-600" />
+                          Sales Count
+                        </CardTitle>
+                        <CardDescription>Number of completed payments per month</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-[300px]">
+                          <Bar
+                            data={{
+                              labels: adminData.analytics.monthlySales?.map(s => s.month) || [],
+                              datasets: [
+                                {
+                                  label: 'Number of Sales',
+                                  data: adminData.analytics.monthlySales?.map(s => s.sales) || [],
+                                  backgroundColor: 'rgba(249, 115, 22, 0.6)',
+                                  borderColor: 'rgb(249, 115, 22)',
+                                  borderWidth: 2,
+                                  borderRadius: 4,
+                                },
+                              ],
+                            }}
+                            options={{
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: {
+                                legend: {
+                                  display: true,
+                                  position: 'top',
+                                },
+                                tooltip: {
+                                  mode: 'index',
+                                  intersect: false,
+                                  callbacks: {
+                                    label: function(context) {
+                                      return `Sales: ${context.parsed.y}`;
+                                    }
+                                  }
+                                },
+                              },
+                              scales: {
+                                y: {
+                                  beginAtZero: true,
+                                  ticks: {
+                                    stepSize: 1,
+                                  },
+                                  grid: {
+                                    color: 'rgba(0, 0, 0, 0.05)',
+                                  }
+                                },
+                                x: {
+                                  grid: {
+                                    display: false,
+                                  }
+                                }
+                              },
+                              interaction: {
+                                mode: 'nearest',
+                                axis: 'x',
+                                intersect: false
+                              }
+                            }}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-center text-muted-foreground py-8">
+                      No analytics data available. Please refresh to load data.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             <TabsContent value="pending" className="space-y-4">
@@ -1024,7 +1539,7 @@ const Dashboard = () => {
                                   <div>
                                     <p className="font-bold text-lg">₹{payment.amount}</p>
                                     <p className="text-xs text-muted-foreground">
-                                      Transaction ID: {payment._id?.slice(-8)}
+                                      Transaction ID: {payment.transactionId || payment._id?.slice(-8)}
                                     </p>
                                   </div>
                                 </div>
@@ -1040,18 +1555,30 @@ const Dashboard = () => {
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex flex-col items-end gap-2">
-                                <Badge 
-                                  variant={
-                                    payment.status === 'completed' ? 'default' : 
-                                    payment.status === 'pending' ? 'warning' : 
-                                    'destructive'
-                                  }
-                                  className="capitalize"
-                                >
-                                  {payment.status}
-                                </Badge>
-                                {payment.status === 'pending' && (
+                              <div className="flex flex-col items-end gap-2 w-48">
+                                <div className="flex gap-2 flex-wrap justify-end">
+                                  <Badge 
+                                    variant={
+                                      payment.status === 'completed' ? 'default' : 
+                                      payment.status === 'pending' ? 'warning' : 
+                                      'destructive'
+                                    }
+                                    className="capitalize"
+                                  >
+                                    {payment.status}
+                                  </Badge>
+                                  <Badge 
+                                    variant={
+                                      payment.adminStatus === 'approved' ? 'success' : 
+                                      payment.adminStatus === 'rejected' ? 'destructive' : 
+                                      'outline'
+                                    }
+                                    className="capitalize"
+                                  >
+                                    Admin: {payment.adminStatus || 'pending'}
+                                  </Badge>
+                                </div>
+                                {payment.adminStatus === 'pending' && (
                                   <div className="flex gap-2 mt-2">
                                     <Button
                                       size="sm"
@@ -1069,7 +1596,7 @@ const Dashboard = () => {
                                             toast({
                                               variant: "destructive",
                                               title: "Error",
-                                              description: err.response?.data?.message || "Failed to approve payment. Endpoint may not be implemented.",
+                                              description: err.response?.data?.message || "Failed to approve payment",
                                             });
                                           });
                                         }
@@ -1094,7 +1621,7 @@ const Dashboard = () => {
                                             toast({
                                               variant: "destructive",
                                               title: "Error",
-                                              description: err.response?.data?.message || "Failed to reject payment. Endpoint may not be implemented.",
+                                              description: err.response?.data?.message || "Failed to reject payment",
                                             });
                                           });
                                         }
@@ -1118,11 +1645,9 @@ const Dashboard = () => {
                     )}
                   </div>
                   {adminData.payments.length > 0 && (
-                    <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-                      <p className="text-xs text-muted-foreground">
-                        💡 <strong>Note:</strong> Payment approval/rejection requires backend API endpoints 
-                        (<code>/admin/payments/:id/approve</code> and <code>/admin/payments/:id/reject</code>). 
-                        If these don't work, contact your developer to implement them.
+                    <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <p className="text-xs text-green-700">
+                        ✓ <strong>Payment Approval System Active:</strong> Admin can approve or reject payments. Approved payments will confirm appointments. Rejected payments will cancel appointments and notify the patient.
                       </p>
                     </div>
                   )}

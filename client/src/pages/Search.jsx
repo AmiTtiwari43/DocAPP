@@ -6,9 +6,11 @@ import { Skeleton } from '../components/ui/skeleton';
 import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '../components/ui/sheet';
 import { useAppContext } from '../context/AppContext';
 import api from '../utils/api';
-import { Search as SearchIcon, X } from 'lucide-react';
+import { Search as SearchIcon, X, Filter } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const Search = () => {
   const [searchParams] = useSearchParams();
@@ -114,38 +116,80 @@ const Search = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background py-6">
+    <div className="min-h-screen bg-background py-8">
       <div className="max-w-7xl mx-auto px-4">
-        <div className="mb-6">
-          <h1 className="text-4xl font-bold mb-3">Find Doctors</h1>
-          <p className="text-muted-foreground mb-4">
+        <motion.div 
+          className="mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <h1 className="text-4xl md:text-5xl font-bold mb-3 text-gradient">Find Doctors</h1>
+          <p className="text-muted-foreground mb-6 text-lg">
             {filteredDoctors.length} {filteredDoctors.length === 1 ? 'doctor' : 'doctors'} found
           </p>
           
           {/* Search Bar */}
-          <div className="relative max-w-xl">
-            <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Search by doctor name, specialization, or city..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-10 h-12 text-base border-2 focus:border-primary"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            )}
-          </div>
-        </div>
+          <motion.div 
+            className="relative max-w-xl"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+          >
+            <div className="relative">
+              <SearchIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground z-10" />
+              <Input
+                type="text"
+                placeholder="Search by doctor name, specialization, or city..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-12 pr-12 h-14 text-base border-2 focus:border-primary rounded-xl shadow-lg focus:shadow-xl transition-all bg-card/50 backdrop-blur-sm"
+              />
+              {searchQuery && (
+                <motion.button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors z-10"
+                  whileHover={{ scale: 1.2 }}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <X className="h-5 w-5" />
+                </motion.button>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Sidebar Filters */}
-          <div className="lg:col-span-1">
+          {/* Mobile Filter Sheet */}
+          <div className="lg:hidden">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" className="w-full border-2 mb-4">
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filters
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[300px] sm:w-[400px] overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle>Filters</SheetTitle>
+                  <SheetDescription>
+                    Refine your search to find the perfect doctor
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="mt-6">
+                  <FilterSidebar
+                    filters={filters}
+                    onFilterChange={handleFilterChange}
+                    onReset={resetFilters}
+                    cities={cities}
+                  />
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+
+          {/* Desktop Sidebar Filters */}
+          <div className="hidden lg:block lg:col-span-1">
             <FilterSidebar
               filters={filters}
               onFilterChange={handleFilterChange}
@@ -170,40 +214,68 @@ const Search = () => {
                 ))}
               </div>
             ) : filteredDoctors.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <motion.div 
+                className="grid grid-cols-1 md:grid-cols-2 gap-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5 }}
+              >
                 {filteredDoctors.map((doctor, index) => (
                   <DoctorCard key={doctor._id} doctor={doctor} index={index} />
                 ))}
-              </div>
+              </motion.div>
             ) : searchQuery && doctors.length > 0 ? (
-              <Card>
-                <CardContent className="p-12 text-center">
-                  <SearchIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-lg text-muted-foreground mb-2">
-                    No doctors match "{searchQuery}"
-                  </p>
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="text-primary hover:underline"
-                  >
-                    Clear search
-                  </button>
-                </CardContent>
-              </Card>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5 }}
+              >
+                <Card className="border-2 premium-shadow">
+                  <CardContent className="p-12 text-center">
+                    <motion.div
+                      animate={{ y: [0, -10, 0] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    >
+                      <SearchIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                    </motion.div>
+                    <p className="text-lg text-muted-foreground mb-4">
+                      No doctors match "{searchQuery}"
+                    </p>
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        onClick={() => setSearchQuery('')}
+                        variant="outline"
+                        className="border-2"
+                      >
+                        Clear search
+                      </Button>
+                    </motion.div>
+                  </CardContent>
+                </Card>
+              </motion.div>
             ) : (
-              <Card>
-                <CardContent className="p-12 text-center">
-                  <p className="text-lg text-muted-foreground mb-4">
-                    No doctors found. Try adjusting your filters.
-                  </p>
-                  <button
-                    onClick={resetFilters}
-                    className="text-primary hover:underline"
-                  >
-                    Reset filters
-                  </button>
-                </CardContent>
-              </Card>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5 }}
+              >
+                <Card className="border-2 premium-shadow">
+                  <CardContent className="p-12 text-center">
+                    <p className="text-lg text-muted-foreground mb-4">
+                      No doctors found. Try adjusting your filters.
+                    </p>
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        onClick={resetFilters}
+                        variant="outline"
+                        className="border-2"
+                      >
+                        Reset filters
+                      </Button>
+                    </motion.div>
+                  </CardContent>
+                </Card>
+              </motion.div>
             )}
           </div>
         </div>

@@ -30,6 +30,12 @@ const paymentSchema = new mongoose.Schema({
     enum: ['pending', 'completed', 'failed', 'refunded'],
     default: 'pending',
   },
+  // Admin verification status for the payment (separate from gateway status)
+  adminStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending',
+  },
   transactionId: {
     type: String,
   },

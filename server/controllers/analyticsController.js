@@ -73,6 +73,9 @@ exports.getAdminAnalytics = async (req, res) => {
       totalRevenue,
       verifiedDoctors,
       pendingDoctors,
+      allPayments,
+      allUsers,
+      allDoctors,
     ] = await Promise.all([
       User.countDocuments(),
       Doctor.countDocuments(),
@@ -83,17 +86,87 @@ exports.getAdminAnalytics = async (req, res) => {
       ]),
       Doctor.countDocuments({ status: 'verified' }),
       Doctor.countDocuments({ status: 'pending' }),
+      Payment.find({ status: 'completed' }).select('amount createdAt'),
+      User.find().select('createdAt role'),
+      Doctor.find().select('createdAt'),
     ]);
+
+    // Calculate total patients
+    const totalPatients = allUsers.filter(u => u.role === 'patient').length;
+
+    // Generate monthly revenue data (last 12 months)
+    const monthlyRevenue = [];
+    const monthlySales = [];
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      const monthPayments = allPayments.filter(
+        (p) => p.createdAt >= monthStart && p.createdAt <= monthEnd
+      );
+      const revenue = monthPayments.reduce((sum, p) => sum + p.amount, 0);
+      
+      monthlyRevenue.push({
+        month: date.toLocaleString('default', { month: 'short', year: 'numeric' }),
+        revenue: revenue,
+      });
+      monthlySales.push({
+        month: date.toLocaleString('default', { month: 'short', year: 'numeric' }),
+        sales: monthPayments.length,
+      });
+    }
+
+    // Generate monthly doctors count data (last 12 months)
+    const monthlyDoctors = [];
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      const doctorsUpToMonth = allDoctors.filter(
+        (d) => d.createdAt <= monthEnd
+      );
+      
+      monthlyDoctors.push({
+        month: date.toLocaleString('default', { month: 'short', year: 'numeric' }),
+        count: doctorsUpToMonth.length,
+      });
+    }
+
+    // Generate monthly patients count data (last 12 months)
+    const monthlyPatients = [];
+    const patients = allUsers.filter(u => u.role === 'patient');
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      const patientsUpToMonth = patients.filter(
+        (p) => p.createdAt <= monthEnd
+      );
+      
+      monthlyPatients.push({
+        month: date.toLocaleString('default', { month: 'short', year: 'numeric' }),
+        count: patientsUpToMonth.length,
+      });
+    }
 
     res.status(200).json({
       success: true,
       data: {
         totalUsers,
+        totalPatients,
         totalDoctors,
         verifiedDoctors,
         pendingDoctors,
         totalAppointments,
         totalRevenue: totalRevenue[0]?.total || 0,
+        monthlyRevenue,
+        monthlySales,
+        monthlyDoctors,
+        monthlyPatients,
       },
     });
   } catch (error) {
