@@ -57,6 +57,12 @@ const sendEmail = async ({ to, subject, html, text }) => {
 
     const transporter = createTransporter();
     const fromEmail = process.env.EMAIL_USER || 'noreply@docverse.com';
+    
+    if (!to) {
+        console.warn('⚠️ Warning: No recipient email provided. Skipping email send.');
+        return { success: false, message: 'No recipient email provided' };
+    }
+
     const info = await transporter.sendMail({
       from: `"THE DocVerse" <${fromEmail}>`,
       to,

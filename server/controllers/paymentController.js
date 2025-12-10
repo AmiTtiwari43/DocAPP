@@ -2,7 +2,7 @@ const Payment = require('../models/Payment');
 const Appointment = require('../models/Appointment');
 const Doctor = require('../models/Doctor');
 const User = require('../models/User');
-const emailService = require('../utils/emailService');
+const { emailTemplates, sendEmail } = require('../utils/emailService');
 
 // Get UPI payment details (QR code)
 exports.getUPIPaymentDetails = async (req, res) => {
@@ -90,7 +90,7 @@ exports.confirmUPIPayment = async (req, res) => {
         const patient = await User.findById(appointment.patientId);
         if (patient && patient.email) {
           const emailData = emailTemplates.appointmentConfirmation(appointment, doctor, patient, payment);
-          await emailService.sendEmail({
+          await sendEmail({
             to: patient.email,
             ...emailData
           });
@@ -127,7 +127,7 @@ exports.adminGetPayments = async (req, res) => {
       .populate('appointmentId')
       .populate('patientId', 'name email')
       .populate('doctorId', 'name specialization')
-      .sort({ createdAt: -1 });
+      .sort({ updatedAt: -1 });
 
     res.status(200).json({ success: true, data: payments });
   } catch (error) {
@@ -168,14 +168,14 @@ exports.adminApprovePayment = async (req, res) => {
       
       // Email to patient: "Payment Verified, waiting for Doctor"
       const patientEmailData = emailTemplates.paymentVerifiedPatient(payment, payment.doctorId, payment.patientId);
-      await emailService.sendEmail({
+      await sendEmail({
         to: payment.patientId?.email,
         ...patientEmailData
       });
 
       // Email to doctor: "Action Required"
       const doctorEmailData = emailTemplates.paymentVerifiedDoctor(payment, payment.doctorId, payment.patientId, appointmentDate, appointmentSlot);
-      await emailService.sendEmail({
+      await sendEmail({
         to: payment.doctorId?.email,
         ...doctorEmailData
       });
@@ -220,7 +220,7 @@ exports.adminRejectPayment = async (req, res) => {
       const appointmentSlot = payment.appointmentId?.slot || 'N/A';
 
       // Email to patient
-      await emailService.sendEmail({
+      await sendEmail({
         to: payment.patientId?.email,
         subject: 'Payment Rejected - Appointment Cancelled',
         text: `Your payment for the appointment with Dr. ${payment.doctorId?.name} has been rejected. The appointment has been cancelled. Please contact support@docverse.com for assistance.`,
@@ -257,7 +257,7 @@ exports.adminRejectPayment = async (req, res) => {
       });
 
       // Email to doctor
-      await emailService.sendEmail({
+      await sendEmail({
         to: payment.doctorId?.email,
         subject: 'Appointment Cancelled - Payment Rejected',
         text: `An appointment with patient ${payment.patientId?.name} on ${appointmentDate} at ${appointmentSlot} has been cancelled. The payment was rejected by admin review. The time slot is now available for rebooking.`,

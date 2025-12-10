@@ -50,7 +50,6 @@ const GoogleLoginWrapper = () => {
                 console.log('Login Failed');
                 toast({ variant: "destructive", title: "Login Failed", description: "Google Login Failed" });
             }}
-            useOneTap
         />
     );
 };
