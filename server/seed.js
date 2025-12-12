@@ -192,7 +192,7 @@ const seedData = async () => {
           "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=1200&auto=format&fit=crop", // Hospital hallway
           "https://images.unsplash.com/photo-1504813184591-01572f98c85f?q=80&w=1200&auto=format&fit=crop", // Medical equipment
           "https://images.unsplash.com/photo-1538108149393-fbbd81895907?q=80&w=1200&auto=format&fit=crop", // Waiting room
-          "https://images.unsplash.com/photo-1516549655169-df83a25a836d?q=80&w=1200&auto=format&fit=crop", // Doctors talking
+          //"https://images.unsplash.com/photo-1516549655169-df83a25a836d?q=80&w=1200&auto=format&fit=crop", // Doctors talking
         ],
       });
       doctors.push(doctor);
