@@ -110,6 +110,8 @@ const Signup = () => {
          }
       }
     } catch (err) {
+      console.error('Signup Error Full:', err); // Debug Log
+      console.log('Signup URL:', '/auth/signup'); // Debug Log
       toast({
         variant: "destructive",
         title: "Error",
