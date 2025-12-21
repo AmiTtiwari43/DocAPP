@@ -22,11 +22,6 @@ app.use(express.json({ limit: '10mb' }));
 // Cookie parser
 app.use(cookieParser());
 
-// Debug Middleware: Log all requests
-app.use((req, res, next) => {
-  console.log(`[REQUEST] ${req.method} ${req.url}`);
-  next();
-});
 
 // Enable CORS
 app.use(
