@@ -153,15 +153,20 @@ exports.signup = async (req, res) => {
     // Send OTP Email
     try {
       const emailData = emailTemplates.verifyEmail(otp);
-      await sendEmail({
+      const emailResult = await sendEmail({
         to: email,
         ...emailData
       });
+
+      if (!emailResult.success) {
+        throw new Error(emailResult.error || 'Failed to send email');
+      }
+
     } catch (err) {
       console.error("OTP send failed", err);
-      // Clean up if email fails? Or let generic error catch it?
-      // user.delete() // Optional
-      return res.status(500).json({ success: false, message: 'Failed to send verification email' });
+      // Clean up if email fails
+      await User.findByIdAndDelete(user._id); 
+      return res.status(500).json({ success: false, message: 'Failed to send verification email. Please checking email credentials.' });
     }
 
     res.status(201).json({
