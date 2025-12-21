@@ -41,7 +41,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
     if (process.env.EMAIL_SERVICE === 'sendgrid' && process.env.SENDGRID_API_KEY) {
       const msg = {
         to,
-        from: process.env.EMAIL_FROM || 'noreply@docverse.com',
+        from: process.env.EMAIL_FROM,
         subject,
         text,
         html,
@@ -80,6 +80,9 @@ const sendEmail = async ({ to, subject, html, text }) => {
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error('❌ Email sending error:', error);
+    if (error.response && error.response.body) {
+      console.error('Detailed SendGrid Error:', JSON.stringify(error.response.body, null, 2));
+    }
     return { success: false, error: error.message };
   }
 };
