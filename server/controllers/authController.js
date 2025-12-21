@@ -166,7 +166,11 @@ exports.signup = async (req, res) => {
       console.error("OTP send failed", err);
       // Clean up if email fails
       await User.findByIdAndDelete(user._id); 
-      return res.status(500).json({ success: false, message: 'Failed to send verification email. Please checking email credentials.' });
+      // Return the EXACT error message for debugging
+      return res.status(500).json({ 
+        success: false, 
+        message: `Email Verification Failed: ${err.message}` 
+      });
     }
 
     res.status(201).json({
