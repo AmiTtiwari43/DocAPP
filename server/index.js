@@ -31,7 +31,24 @@ app.use((req, res, next) => {
 // Enable CORS
 app.use(
   cors({
-    origin: [process.env.CLIENT_URL || 'http://localhost:5173', 'http://localhost:5173', 'https://doctor-review-management-system-main.vercel.app', 'https://doc-app-roan.vercel.app'],
+    origin: (origin, callback) => {
+      const allowedOrigins = [
+        process.env.CLIENT_URL,
+        'http://localhost:5173',
+        'https://doctor-review-management-system-main.vercel.app',
+        'https://doc-app-roan.vercel.app'
+      ];
+      
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
+      
+      console.log('Blocked by CORS:', origin);
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
   })
 );
