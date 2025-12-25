@@ -80,6 +80,9 @@ app.use('/api/favorites', favoriteRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/users', userRoutes);
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
+});
 
 // Health check
 app.get('/api/health', (req, res) => {
