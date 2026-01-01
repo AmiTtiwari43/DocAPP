@@ -3,7 +3,7 @@ const Doctor = require('../models/Doctor');
 const Chat = require('../models/Chat');
 
 // Initialize Gemini API
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'AIzaSyD7kzITRyaq_0Yg-RS5MCahopCThKntzyM');
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY );
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
 
 // Get chat history for a user
