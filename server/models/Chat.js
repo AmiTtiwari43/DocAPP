@@ -28,6 +28,7 @@ const chatSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
+    expires: 30 * 24 * 60 * 60, // Automatically delete after 30 days
   },
 });
 
