@@ -103,6 +103,7 @@ node seed.js
 - Node.js & Express
 - MongoDB & Mongoose
 - JWT Authentication
+- Google Generative AI (Gemini 2.5 Flash)
 - SendGrid (Email)
 - Nodemailer
 
@@ -162,6 +163,10 @@ Doctor-Review-Management-System-main/
 - `POST /api/payments/upi/confirm` - Confirm UPI payment
 - `GET /api/payments/history` - Get payment history
 
+### AI Chat
+- `POST /api/chat` - Process message & get medical/symptom suggestions
+- `GET /api/chat/history` - Fetch recent chat messages for the logged-in user
+
 ## 🆘 Troubleshooting
 
 ### MongoDB Connection Error
@@ -178,10 +183,21 @@ Doctor-Review-Management-System-main/
 - Check SendGrid dashboard
 - Verify sender email
 
+## 🤖 AI Health Assistant (Gemini 2.5 Flash)
+
+The system features a built-in conversational AI assistant to guide patients on symptoms, diet, and specialist consultation:
+
+- **Conversational Medical Companion**: Powered by **Gemini 2.5 Flash** to provide warm, empathetic, and dialogic health advice.
+- **Smart Specialist Mapping & Recommendations**: Analyzes user symptoms to recommend appropriate medical specializations (e.g., Cardiologist, Neurologist) and queries the database for verified doctors matching that specialization.
+- **Context Awareness**: Retains conversational context across multiple turns of messages for natural follow-ups and diet/advice sync.
+- **Robust Fallback & Context Recovery**: If Gemini is offline or rate limits are reached, the system falls back to an offline rule-based regex mapper and recovers conversational context from MongoDB.
+- **Persistent Rate Limiting**: Chat interactions are limited to **30 messages per hour** and **100 messages per day** per user to prevent API key abuse and billing spikes.
+- **Auto-Cleanup (TTL)**: Chat logs are automatically deleted after **30 days** using a MongoDB TTL index on the collection to protect user privacy.
+
 ## 📚 Documentation
 
-- **`START_HERE.md`** - Detailed quick start guide
-- **`SECURE_CREDENTIALS.txt`** - Backup of credentials (keep secure!)
+- **`README.md`** - General information and setup instructions
+- **`SECURE_CREDENTIALS.txt.example`** - Example configuration format for credentials
 
 ## 📄 License
 
