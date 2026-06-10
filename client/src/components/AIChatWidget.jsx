@@ -37,6 +37,15 @@ const AIChatWidget = () => {
           }
         } catch (error) {
           console.error("Failed to fetch chat history", error);
+          if (error.response?.status === 401) {
+            toast({
+              variant: "destructive",
+              title: "Authentication Required",
+              description: "Please login to continue",
+            });
+            navigate('/login');
+            setIsOpen(false);
+          }
         }
       } else if (!user) {
         setMessages([]); // Clear messages if no user
@@ -73,6 +82,16 @@ const AIChatWidget = () => {
         setMessages((prev) => [...prev, aiResponse]);
       }
     } catch (error) {
+      if (error.response?.status === 401) {
+        toast({
+          variant: "destructive",
+          title: "Authentication Required",
+          description: "Please login to continue",
+        });
+        navigate('/login');
+        setIsOpen(false);
+        return;
+      }
       setMessages((prev) => [
         ...prev,
         { role: 'ai', content: error.response?.data?.message || 'Sorry, I encountered an error. Please try again.' },
@@ -100,7 +119,18 @@ const AIChatWidget = () => {
   return (
     <>
       <motion.button
-        onClick={() => setIsOpen(true)}
+        onClick={() => {
+          if (!user) {
+            toast({
+              variant: "destructive",
+              title: "Authentication Required",
+              description: "Please login to continue",
+            });
+            navigate('/login');
+            return;
+          }
+          setIsOpen(true);
+        }}
         className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl flex items-center justify-center transition-all hover:scale-110"
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
